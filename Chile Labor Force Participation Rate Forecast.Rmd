@@ -1,0 +1,202 @@
+---
+title: "Chile Labor Force-Real World Time Series Analysis"
+author: "Oguzhan Gurbuz"
+date: "2023-01-30"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+#The labor force participation rate can be defined as "an estimate of an economy’s active workforce" (Investopedia). The formula is the number of people ages 16 and older who are employed or actively seeking employment, divided by the total non-institutionalized, civilian working-age population. #It is important to understand this rate since it yields a strong clue about the country's economy.
+
+#Labor Force Participation Rate = (Number Employed+Number Seeking Work) × 100 / Civilian Non-Institutional Population
+
+#In this time series analysis, we're going to analyse the labor force participation rate trend of a developing country in the Global South, Chile, having a population of 19,5 million according to the World Bank. The main goal of this analysis is to see the current pattern of the country's labour force partication rate and forecast the next 6 years. 
+
+#The data I collected from the World Bank has a time period of 30 years between 1990 and 2019. We're going to forecast the value for the next 6 years between 2020 and 2025. This will be possible by using three forecast methods, namely, the Box-Jenkins or ARIMA (Autoregressive Integrated Moving Average), Holt's linear trend and Holt-Winter damped methods.
+
+```{r}
+#Let's install the necessary packages
+#install.packages("fpp")
+#install.packages("forecast")
+#install.packages("ggplot2")
+
+#Let's load the necessary packages.
+library(readxl)
+library(forecast)
+library(ggplot2)
+library(fpp)
+```
+
+#PREPARING AND EXPLORING THE DATA
+```{r}
+#First, we need to load the dataset and assign to "chile_data".
+chile_data <- read_excel("Chile Labor Force Participation Rate.xlsx")
+```
+
+
+```{r}
+#What's the class of the Chile data set. 
+class(chile_data) #It's a data frame.
+
+#Let's add a name to top of the data
+names(chile_data) <- c("Labor Force Participation Rate")
+chile_ts <- ts(chile_data, start = 1990,end = 2019,frequency = 1)
+
+#Let's see a few observations from the dataset.
+head(chile_ts)
+
+#Summary of the data
+summary(chile_data)
+
+#We can plot the data and see how it increased in time.
+plot(chile_ts)
+
+#Based on the plot, we can say the labor force participation rate data set seems trending, but apparently, there is no seasonality. That means the Holt function for a linear trend model will be a good one to forecast.
+```
+
+#Holt Linear and Holt-Winter's Models
+```{r}
+#Let's set up a linear trend model for the Chile labor participation time series. We can use the holt() function, being a component of the forecast package. The argument h is used to specify the forecast length. For the first observation, let's go with 10 (h = 10). In other words, that is a forecast of 10 years into the future.
+
+# Exponential smoothing with holt-trend
+
+holt.linear = holt(chile_ts, h = 10)
+
+summary(holt.linear)
+
+#When we look at the values from the summary, we get the values for the alpha and beta parameters, alpha is 0.999 and beta is 0.402. This shows the trend (the slope of the time serious plot) is fairly constant throughout. Here, alpha and beta needs further investigation:
+
+#Alpha(α): The level component smoothing parameter is Alpha specifying the weight attributed to the most recent data in the prediction (the year of 2019). A value close to 1 highlights the most recent observation, whereas a value close to 0 highlights past observations. In this case, alpha is 0.9999, suggesting that the model gives the most recent observation virtually full weight.
+
+#The Beta (β) smoothing parameter for the slope component changes the weight assigned to the most recent forecast error in the prediction. A value close to 1 emphasizes the most recent prediction mistake, whereas a value close to 0 emphasizes previous forecast errors. In this case, beta is 0.4021, showing the model prioritizes earlier forecast errors above the most recent forecast error. 
+
+#Let's see the plot of the Holt linear model to visualize the pattern.
+plot(holt.linear)
+
+#The line in blue is the forecasted ten years 2020 to 2029. And the light and dark shaded zones are the confidence intervals with the 80 and 95% confidence. We can also see that the slope of the forecasted period is nearly the same as with the period between 2010 and 2020 and between 1990 and 2000. This simply means the model takes a trend slope of at least the last 10 years.
+
+#Of course, the level value is added to this slope to get the corresponding forecasted value. But let's go back to the summary output. Under initial states, we get the values for the slope and the level value. These values are used together with the smoothing parameters in the initial level and slope equations. To calculate the first forecasted observation, we get information criteria for the model as well as arrow measures, and we get the forecast points and the confidence intervals which are used in the plot.
+
+#One of the problems in the data is the trend. It is not realistic and the trend cannot continue indefinitely. I mean, for a country's labor force participation rate, it's not possible to converge to the level of 100%. There will always be people unwilling to participate in the labor market. That means the curve will likely flatten out in the range of 90%.
+
+#We can do this with the Holt function using the damped argument. A damped Holt linear trend model assumes that the trend cannot be constant forever. Using this model, we suggest growth needs to come to an end at some point. The curve needs to flatten out. Here the damping parameter phi(φ) comes into play. Let's first have a look at the formula:
+# Forecasting formula = yt+h|t = l + hbt
+# Damped forecasting formula = yt+h|t = l + (φ + φ^2 + φ^3 + ... + φ^h)bt
+# 0 < Damping parameter phi(φ) < 1
+
+#If phi(φ)  is one, it is the same as a standard Holt linear model, whereas when phi is close to 0, the curve gets flat fairly soon. In practice, the parameter phi(φ) is set somewhere between 0.8 and 0.98. Using a phi(φ) at around 0.8, we make sure that short run forecasts still contain the trend, whereas the longer forecast legs are at a flat a curve, we can easily adjust our whole model with a damping parameter.
+
+#Let's also have a look at the values, l and b. The initial level (l = 57.5226) and initial slope (b = 0.4805) are the starting values that the Holt's method uses to generate its forecast. The accuracy of the forecast is influenced by the initial level and slope. These values are estimated based on the historical data and are used to calculate the first forecasted value. The level refers to the baseline value or average value of the series, while the slope represents the rate of change over time. The level and slope values determine the overall shape and direction of the forecast. If the level is high, the forecasted values will tend to be higher, while a low level will result in lower forecasted values. The slope determines the rate of change of the series over time. A positive slope means that the series is increasing, while a negative slope means that it is decreasing.
+```
+
+```{r}
+#To show such a Holt model with a damping parameter, I will directly plot the Holt model with h=15. So that the flat or damped curve gets optimally visualized. The code itself is the same as with a standard Holt model. However, you need to set damped to "TRUE" or "T" that we are just going to select the best suitable parameter phi(φ) for you.
+
+# Phi(φ) auto generated
+plot(holt(chile_ts, h = 15, damped = T))
+```
+
+```{r}
+# To see the generated value for phi(φ)
+summary(holt(chile_ts, h = 15, damped = T))
+
+# Here the phi = 0.9507: It is close to 1, meaning the damping component is highly persistent. This implies that the trend component may change slowly over time. Let's change it manually to 0.8.
+
+# Manual setting of phi
+plot(holt(chile_ts, h = 15, damped = T, phi = 0.8))
+```
+
+#Simple Exponential Smoothing Method (SES)
+```{r}
+#We can apply the SES method if it's non-stationary. Let's apply a ADF test and see the stationarity:
+adf.test(chile_ts) #Because the p-value is greater than 0.05, we cannot reject the alternative hypothesis and the time series seems to be non-stationary.
+
+#SES Method
+ses.model = ses(chile_ts, h = 10)
+summary(ses.model)
+plot(ses.model)
+```
+
+#ARIMA Model
+```{r}
+#ARIMA or a form of the Box-Jenkins model is a standard modelling system for time series. ARIMA models are flexible and very general. The random walks, exponential smoothing or auto regressive models can all be explained with that system of ARIMA. 
+
+#The most important thing to keep in mind is the trend of the data set. There is a trend in the time series meaning the autocorrelation is present. This implies that an observation at an earlier time point influences the later observations. The values tend to increase or decrease over time. Since this is a yearly data set without season, a standard ARIMA model is suitable to create a model.
+
+# Auto Generated ARIMA
+arima.chile = auto.arima(chile_ts)
+
+summary(arima.chile)
+
+plot(forecast(arima.chile, h = 10))
+```
+
+```{r}
+# Exact calculation of ARIMA parameters
+auto.arima(chile_ts, stepwise=F, approximation=F)
+
+#The first coefficient, ar1, represents the AutoRegressive (AR) term, and it measures the influence of past values on the current value of the time series. In this case, the estimated value of ar1 is 0.3114, which means that past values of the time series have a positive impact on the current value. The standard error of the ar1 coefficient, 0.1758, indicates the uncertainty in the estimated value.
+
+#The second coefficient, drift, represents the linear trend in the time series data. The estimated value of drift is 0.3705, which means that the labor force participation rate in Chile is increasing at a rate of 0.3705 units per time step on average. The standard error of the drift coefficient, 0.1189, indicates the uncertainty in the estimated value of the trend.
+```
+
+#FORECASTING AND DATA VISUALIZATION
+```{r}
+#As I declared before in the first section, the final model forecasts the next 6 years.
+# Creating final models
+holt.linear.final = holt(chile_ts, h = 6)
+holt.damped.final = holt(chile_ts, h = 6, damped = T)
+ses.model.final = ses(chile_ts, h = 6)
+arima.chile.final = forecast(auto.arima(chile_ts), h = 6)
+```
+
+
+```{r}
+#Plotting the forecasts of the three models we set
+plot(holt.linear.final)
+plot(holt.damped.final)
+plot(ses.model.final)
+plot(arima.chile.final)
+```
+
+```{r}
+#Checking the forecasting results of the Holt trend model
+print(holt.linear.final)
+
+#Checking the forecasting results of the Holt damped model
+print(holt.damped.final)
+
+#Checking the forecasting results of the Simple Exponential Smoothing model
+print(ses.model.final)
+
+#Checking the forecasting results of the ARIMA model
+print(arima.chile.final)
+```
+
+```{r}
+autoplot(chile_ts) + geom_line(size=1) +
+  forecast::autolayer(holt.linear.final$mean, series = "Holt Linear Trend") + geom_line(size=1) +
+  forecast::autolayer(holt.damped.final$mean, series = "Holt Damped Trend") + geom_line(size=1) +
+  forecast::autolayer(ses.model.final$mean, series = "SES") + geom_line(size=1) +
+  forecast::autolayer(arima.chile.final$mean, series = "ARIMA") + geom_line(size=1) +
+  xlab("year") + ylab("Labour Force Participation Rate in Chile (Age 15-64)") + 
+  guides(colour=guide_legend(title="Forecast Method")) + theme(legend.position = c(0.8, 0.2)) +
+  ggtitle("Chile") + theme(plot.title=element_text(family="Calibri", hjust = 0.5, color = "blue",
+                                                      face="bold", size=15))
+```
+
+
+#Final Comments
+
+#The point forecast values show that the labor force participation rate in Chile will increase to around 70%.
+
+#It can be seen that the predicted values and prediction intervals increase steadily from 2020 to 2025. This may suggest that the time series has a positive trend. 
+
+#However, this is a simple time series analysis with one year frequency and with 30 observations. Without additional information on the labor force participation rate and more frequent data, it is difficult to make any further conclusions.
+
+
+
+
+
+
